@@ -6,38 +6,53 @@ A Python bot that automatically plays [Google Minesweeper](https://www.google.co
 
 The bot captures your screen, detects the minesweeper grid using computer vision (OpenCV), reads cell states via color sampling, solves using constraint satisfaction with backtracking enumeration, and clicks/flags cells using PyAutoGUI.
 
-## Requirements
+## Quick Start
 
-- Python 3.8+
-- macOS or Windows
-- Google Minesweeper open in a browser
-
-## Setup
-
-```bash
-pip install pyautogui opencv-python numpy pillow
-```
-
-On macOS, you'll need to grant screen recording and accessibility permissions to your terminal app (System Settings > Privacy & Security). Windows requires no special permissions; DPI scaling is auto-detected.
-
-## Usage
+### macOS / Linux
 
 1. Open [Google Minesweeper](https://www.google.com/fbx?fbx=minesweeper) in your browser
 2. Make sure the game board is fully visible on screen
-3. Run the bot:
+3. Run the launcher:
 
 ```bash
+./run.sh
+```
+
+On first run this creates a virtual environment and installs all dependencies automatically. You just need [Python 3.8+](https://www.python.org/downloads/) installed.
+
+**macOS permissions:** Your terminal app needs **Screen Recording** and **Accessibility** access (System Settings > Privacy & Security). macOS will prompt you on first run.
+
+### Windows
+
+1. Open [Google Minesweeper](https://www.google.com/fbx?fbx=minesweeper) in your browser
+2. Make sure the game board is fully visible on screen
+3. Double-click **`run.bat`**, or run it from a terminal:
+
+```
+run.bat
+```
+
+On first run this creates a virtual environment and installs all dependencies automatically. You just need [Python 3.8+](https://www.python.org/downloads/) installed. No special permissions are required; DPI scaling is auto-detected.
+
+### Manual Setup
+
+If you prefer to manage dependencies yourself:
+
+```bash
+pip install pyautogui opencv-python numpy pillow
 python bot.py
 ```
 
 The bot will wait 3 seconds before starting, giving you time to switch to the browser.
 
-### Options
+## Options
+
+Pass flags after the launcher script or directly to `bot.py`:
 
 ```bash
-python bot.py --debug        # Save annotated screenshots to debug/
-python bot.py --step         # Step mode: press SPACE before each click, 'q' to quit
-python bot.py --delay 0.05   # Set per-click delay in seconds (default: 0.01s)
+./run.sh --debug        # Save annotated screenshots to debug/
+./run.sh --step         # Step mode: press SPACE before each click, 'q' to quit
+./run.sh --delay 0.05   # Set per-click delay in seconds (default: 0.01s)
 ```
 
 ### Supported Difficulties
