@@ -253,7 +253,10 @@ class Grid:
         return (cx, cy)
 
     def update(self, screenshot: Image.Image):
-        """Update all cell states from screenshot.
+        """Update cell states from screenshot.
+
+        Only re-reads cells that were previously unknown. Revealed numbers
+        and flags never change, so skipping them saves time.
 
         Args:
             screenshot: PIL Image (physical pixels).
@@ -261,6 +264,9 @@ class Grid:
         self.unrecognized_count = 0
         for row in range(self.rows):
             for col in range(self.cols):
+                current = self.cells[row][col]
+                if isinstance(current, int) or current == 'flag':
+                    continue
                 self.cells[row][col] = self._get_cell_state(screenshot, row, col)
 
     def _get_cell_state(self, screenshot: Image.Image, row: int, col: int):
