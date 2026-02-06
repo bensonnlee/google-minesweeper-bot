@@ -292,6 +292,9 @@ def play(debug: bool = False, delay: float = 0.1, step: bool = False):
             print("Game finished - no more moves available.")
             break
 
+        if iteration == 1:
+            cells = [(grid.rows // 2, grid.cols // 2)]
+
         if not _execute_moves(action, cells, solver, screenshot, grid,
                               mine_count, iteration, debug, step, delay):
             return
