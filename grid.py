@@ -140,8 +140,12 @@ def detect_grid(screenshot: Image.Image, scale: float) -> GridInfo:
     cell_size = int(cell_size_physical / scale)
 
     # Calculate rows and cols
+    if cell_size == 0:
+        raise ValueError("Could not find minesweeper grid — make sure the game is open and visible on screen")
     cols = round(logical_w / cell_size)
     rows = round(logical_h / cell_size)
+    if cols == 0 or rows == 0:
+        raise ValueError("Could not find minesweeper grid — make sure the game is open and visible on screen")
 
     # Recalculate cell size to fit exactly
     cell_size = logical_w // cols
