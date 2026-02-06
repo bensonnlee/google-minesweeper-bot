@@ -3,6 +3,8 @@
 import pyautogui
 from PIL import Image
 
+pyautogui.PAUSE = 0
+
 
 class Screen:
     """Handles screenshot capture and coordinate system translation.
