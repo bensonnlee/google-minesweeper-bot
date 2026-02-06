@@ -3,6 +3,7 @@
 import argparse
 import os
 import sys
+import threading
 import time
 
 if sys.platform == 'win32':
@@ -11,10 +12,25 @@ else:
     import termios
     import tty
 from PIL import Image, ImageDraw
+from pynput import keyboard
 
 from screen import Screen
 from grid import detect_grid, Grid
 from solver import Solver
+
+# Global stop event — set when user presses Esc
+_stop_event = threading.Event()
+
+
+def _on_key_press(key):
+    if key == keyboard.Key.esc:
+        _stop_event.set()
+        return False  # Stop the listener
+
+
+def _stopped():
+    """Check if the user requested a stop via Esc."""
+    return _stop_event.is_set()
 
 # Mine counts by grid dimensions (rows, cols)
 MINE_COUNTS = {
@@ -145,6 +161,10 @@ def _execute_moves(action, cells, solver, screenshot, grid, mine_count,
     """
     move_num = 0
     while action is not None:
+        if _stopped():
+            print("\nStopped by user (Esc).")
+            return False
+
         move_num += 1
         if debug:
             print(f"[{move_num}] {action} on {len(cells)} cells {cells}")
@@ -165,6 +185,10 @@ def _execute_moves(action, cells, solver, screenshot, grid, mine_count,
             save_debug_image(screenshot, grid, action, cells, iteration)
 
         for row, col in cells:
+            if _stopped():
+                print("\nStopped by user (Esc).")
+                return False
+
             if step and action == 'click':
                 print(f"    Next: click ({row}, {col})")
                 if not wait_for_space():
@@ -202,8 +226,17 @@ def play(debug: bool = False, delay: float = 0.1, step: bool = False):
         delay: Delay between actions in seconds.
         step: If True, wait for space press before each cell click.
     """
+    # Start global hotkey listener (Esc to stop)
+    listener = keyboard.Listener(on_press=_on_key_press)
+    listener.daemon = True
+    listener.start()
+
     print("Minesweeper Bot starting...")
     print("Please ensure the Google Minesweeper game is visible on screen.")
+    print()
+    print("  Esc        Stop the bot (works even when browser is focused)")
+    print("  Move mouse to top-left corner to trigger PyAutoGUI failsafe")
+    print()
     print("Starting in 3 seconds...")
     time.sleep(3)
 
@@ -232,6 +265,10 @@ def play(debug: bool = False, delay: float = 0.1, step: bool = False):
     # Game loop
     iteration = 0
     while True:
+        if _stopped():
+            print("\nStopped by user (Esc).")
+            break
+
         iteration += 1
         print(f"\n--- Iteration {iteration} ---")
 

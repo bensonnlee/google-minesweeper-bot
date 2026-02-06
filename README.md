@@ -45,6 +45,11 @@ python bot.py
 
 The bot will wait 3 seconds before starting, giving you time to switch to the browser.
 
+## Stopping the Bot
+
+- **Press Esc** at any time to stop the bot. This works even when the browser is focused.
+- **Move your mouse to the top-left corner** of the screen to trigger PyAutoGUI's failsafe.
+
 ## Options
 
 Pass flags after the launcher script or directly to `bot.py`:
