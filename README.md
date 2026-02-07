@@ -75,10 +75,8 @@ The bot auto-detects the grid size from the screenshot.
 The solver uses a multi-pass approach, from fast heuristics to full enumeration:
 
 1. **Endgame check** -- if all remaining unknowns are mines (or no mines remain)
-2. **Basic flagging** -- a numbered cell's unknown neighbors exactly match its remaining mine count
-3. **Basic safe cells** -- a numbered cell already has all its mines flagged
-4. **Subset analysis** -- deduce mines/safe cells from overlapping constraint pairs
-5. **Global border enumeration** -- backtracking over all border cells (up to 40) to find deterministic moves or calculate mine probabilities
+2-4. **Iterative inference chaining** -- loops basic flagging, basic safe cells, and subset analysis until convergence. Allows inferences to chain across the entire board (e.g., finding mines on one side enables finding safe cells on the other side in the same iteration)
+5. **Global border enumeration** -- only runs if no deterministic moves found. Uses backtracking with constraint-based ordering (most-constrained cells first) to find moves or calculate mine probabilities
 6. **Probability-based guess** -- pick the cell with lowest mine probability
 7. **Random fallback** -- prefer corners and edges
 
@@ -101,4 +99,4 @@ Run with `--debug` to save annotated screenshots to `debug/`:
 ## Limitations
 
 - The browser window with the game must be fully visible (not overlapped)
-- Very large borders (>40 unknown cells adjacent to numbers) fall back to region-based solving
+- Very large borders (>70 unknown cells adjacent to numbers) fall back to region-based solving

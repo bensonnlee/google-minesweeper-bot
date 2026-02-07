@@ -116,7 +116,7 @@ def print_grid_state(grid: Grid):
 
 def _is_grid_obscured(grid):
     total_cells = grid.rows * grid.cols
-    if grid.unrecognized_count > total_cells // 4:
+    if grid.unrecognized_count > total_cells // 10:
         print(f"Grid obscured ({grid.unrecognized_count}/{total_cells} cells unrecognized) - game likely over.")
         return True
     return False

@@ -41,7 +41,7 @@ Main loop: Capture screenshot → Update grid → Solve → Execute moves → Wa
 - Flags are tracked internally via a `set` and also written to `grid.cells` immediately (not re-detected from screenshots)
 - Before committing to a guess (iteration > 1), recaptures board with 0.5s delay in case cascading reveals haven't settled
 - Always pauses for user confirmation (space/q) before executing a guess move
-- Grid obscured detection: if >25% of cells have unrecognized backgrounds, assumes game is over
+- Grid obscured detection: if >10% of cells have unrecognized backgrounds, assumes game is over
 - Bot exits when solver has no moves left or grid is obscured
 
 ## Critical: Coordinate Systems
@@ -90,14 +90,15 @@ MINE_COUNTS = {
 Multi-pass approach in `solver.py`:
 
 1. **Endgame check** — if mine_count known: all unknowns are mines, or no mines remain
-2. **Basic flagging** — numbered cell has exactly N unknowns matching remaining mines
-3. **Basic safe cells** — numbered cell has all mines flagged, unknowns are safe
-4. **Subset/intersection analysis** — constraint pairs where one is subset of another
-5. **Global border enumeration** — backtracking over all border cells together (≤40 cells), falls back to region-based enumeration for larger borders
+2-4. **Iterative inference chaining** — loops basic flagging, basic safe cells, and subset analysis until no new moves found. Temporarily marks found mines as flags to enable subsequent passes to discover more moves. This allows inferences to chain across the entire board in one iteration.
+   - **Basic flagging** — numbered cell has exactly N unknowns matching remaining mines
+   - **Basic safe cells** — numbered cell has all mines flagged, unknowns are safe
+   - **Subset/intersection analysis** — constraint pairs where one is subset of another
+5. **Global border enumeration** — only runs if passes 2-4 found nothing. Uses backtracking over border cells (cells adjacent to numbers) with constraint-based ordering (most-constrained cells first for better pruning). Falls back to region-based enumeration if border exceeds MAX_REGION_SIZE.
 6. **Probability-based guess** — pick lowest mine probability from enumeration results
 7. **Random fallback** — prefer corners/edges, cells not adjacent to numbers
 
-Key constants: `MAX_REGION_SIZE = 50`, `MAX_SOLUTIONS = 100_000`
+Key constants: `MAX_REGION_SIZE = 70`, `MAX_SOLUTIONS = 100_000`
 
 ## Debug Output
 

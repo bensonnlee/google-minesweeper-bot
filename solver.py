@@ -5,7 +5,7 @@ from typing import List, Tuple, Optional, Set, FrozenSet, Dict
 
 # Computational safeguards
 MAX_SOLUTIONS = 100_000    # Stop enumeration after this many solutions
-MAX_REGION_SIZE = 50       # Fall back to region-based enumeration if border too large
+MAX_REGION_SIZE = 70       # Fall back to region-based enumeration if border too large
 
 
 @dataclass
@@ -41,10 +41,9 @@ class Solver:
 
         Uses a multi-pass approach:
         1. Endgame check (if mine_count known)
-        2. Basic flagging (fast single-cell logic)
-        3. Basic safe cells (fast single-cell logic)
-        4. Subset/intersection analysis (medium - constraint pairs)
-        5. Full enumeration per region (may be slow)
+        2-4. Iterative chaining: basic flagging, basic safe cells, and
+             subset analysis loop until no new moves are found
+        5. Full enumeration per region (expensive, only if passes 2-4 found nothing)
         6. Probability-based guess
         7. Random fallback
 
@@ -53,41 +52,47 @@ class Solver:
             - action: 'click' | 'flag' | None (None means game over or stuck)
             - cells: List of (row, col) tuples to perform action on
         """
-        # Pass 1: Endgame check
+        # Pass 1: Endgame check (takes priority)
         action, cells = self._check_endgame()
         if action:
             return (action, cells)
 
-        # Pass 2: Basic flagging (fast)
-        # If a numbered cell has exactly (number - flags) unknowns, flag them all
-        cells_to_flag = self._find_cells_to_flag()
-        if cells_to_flag:
-            return ('flag', cells_to_flag)
+        # Iterate Passes 2-4 until convergence (allows inferences to chain)
+        all_mines = set()
+        all_safe = set()
+        all_probabilities = {}
+        modified_cells = {}  # (r, c) -> original value, for restoring after
 
-        # Pass 3: Basic safe cells (fast)
-        # If a numbered cell has all its mines flagged, click remaining unknowns
-        cells_to_click = self._find_safe_cells()
-        if cells_to_click:
-            return ('click', cells_to_click)
+        for _ in range(10):  # Safety limit
+            prev_total = len(all_mines) + len(all_safe)
 
-        # Build constraints for advanced analysis
-        constraints = self._build_constraints()
+            # Pass 2: Basic flagging
+            new_mines = set(self._find_cells_to_flag()) - all_mines
+            all_mines.update(new_mines)
+            self._temporarily_flag(new_mines, modified_cells)
 
-        # Pass 4: Subset analysis (medium)
-        if constraints:
-            definite_mines, definite_safe = self._subset_analysis(constraints)
-            if definite_mines:
-                return ('flag', list(definite_mines))
-            if definite_safe:
-                return ('click', list(definite_safe))
+            # Pass 3: Basic safe cells
+            all_safe.update(self._find_safe_cells())
 
-        # Pass 5: Full enumeration (may be slow)
+            # Pass 4: Subset analysis
+            constraints = self._build_constraints()
+            if constraints:
+                definite_mines, definite_safe = self._subset_analysis(constraints)
+                new_subset_mines = definite_mines - all_mines
+                all_mines.update(definite_mines)
+                all_safe.update(definite_safe)
+                self._temporarily_flag(new_subset_mines, modified_cells)
+
+            if len(all_mines) + len(all_safe) == prev_total:
+                break
+
+        # Restore original cell states
+        for (r, c), original_value in modified_cells.items():
+            self.cells[r][c] = original_value
+
+        # Pass 5: Full enumeration (only if passes 2-4 found nothing)
         border_cells = self._get_border_cells()
-        if border_cells and constraints:
-            all_definite_mines = set()
-            all_definite_safe = set()
-            all_probabilities = {}
-
+        if not all_mines and not all_safe and border_cells and constraints:
             # Try global enumeration first if border is small enough
             if len(border_cells) <= MAX_REGION_SIZE:
                 regions = [border_cells]
@@ -102,25 +107,26 @@ class Solver:
                 solutions, _complete = self._enumerate_solutions(region, constraints)
                 if solutions:
                     mines, safe, probs = self._process_solutions(region, solutions)
-                    all_definite_mines.update(mines)
-                    all_definite_safe.update(safe)
+                    all_mines.update(mines)
+                    all_safe.update(safe)
                     all_probabilities.update(probs)
 
-            if all_definite_mines:
-                return ('flag', list(all_definite_mines))
-            if all_definite_safe:
-                return ('click', list(all_definite_safe))
+        # Return ALL accumulated moves
+        if all_mines:
+            return ('flag', list(all_mines))
+        if all_safe:
+            return ('click', list(all_safe))
 
-            # Pass 6: Probability-based guess
-            if all_probabilities:
-                unknown_cells = self._find_unknown_cells()
-                interior_cells = set(unknown_cells) - border_cells
+        # Pass 6: Probability-based guess
+        if all_probabilities:
+            unknown_cells = self._find_unknown_cells()
+            interior_cells = set(unknown_cells) - border_cells
 
-                best_guess, best_prob = self._select_best_guess(all_probabilities, interior_cells)
-                if best_guess:
-                    self.is_guess = True
-                    self.guess_probability = best_prob
-                    return ('click', [best_guess])
+            best_guess, best_prob = self._select_best_guess(all_probabilities, interior_cells)
+            if best_guess:
+                self.is_guess = True
+                self.guess_probability = best_prob
+                return ('click', [best_guess])
 
         # Pass 7: Random fallback
         unknown_cells = self._find_unknown_cells()
@@ -133,6 +139,18 @@ class Solver:
 
         # No moves available (game over or won)
         return (None, [])
+
+    def _temporarily_flag(self, cells: Set[Tuple[int, int]],
+                          modified_cells: Dict[Tuple[int, int], str]):
+        """Mark cells as flags in self.cells so subsequent passes see them.
+
+        Records which cells were modified so they can be restored later.
+        Only modifies cells that are still 'unknown'.
+        """
+        for r, c in cells:
+            if self.cells[r][c] == 'unknown':
+                modified_cells[(r, c)] = 'unknown'
+                self.cells[r][c] = 'flag'
 
     def get_neighbors(self, row: int, col: int) -> List[Tuple[int, int]]:
         """Get all valid neighbor coordinates for a cell.
@@ -431,13 +449,16 @@ class Solver:
                 - solutions: List of dicts mapping cell -> is_mine
                 - complete: True if enumeration finished, False if truncated
         """
-        cells = list(region_cells)
-        # Use ALL constraints that overlap with this region
-        # Constraints with cells outside the region are handled by constraint_possible()
-        # which only checks cells within the region (conservative: out-of-region treated as "could be anything")
+        # Order cells by constraint count (most constrained first = better pruning)
+        def constraint_count(cell):
+            return sum(1 for c in constraints if cell in c.unknowns)
+        cells = sorted(region_cells, key=constraint_count, reverse=True)
+
+        # Use all constraints that overlap with this region (not just fully contained).
+        # constraint_possible() handles out-of-region cells conservatively.
         relevant_constraints = [
             c for c in constraints
-            if c.unknowns & region_cells  # Overlapping (not just fully contained)
+            if c.unknowns & region_cells
         ]
 
         solutions = []
@@ -450,7 +471,6 @@ class Solver:
             unassigned = unknowns_in_region - assigned
 
             mines_assigned = sum(1 for c in assigned if assignment[c])
-            safe_assigned = len(assigned) - mines_assigned
 
             # Too many mines already
             if mines_assigned > constraint.mines_needed:
